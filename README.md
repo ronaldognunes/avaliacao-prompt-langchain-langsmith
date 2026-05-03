@@ -166,15 +166,15 @@ COMPLEXO → + USER STORY PRINCIPAL (Título + Descrição como user story expan
 
 > **Adicione abaixo os links públicos gerados no LangSmith após a avaliação final:**
 
-- **Dataset (15 exemplos):** `https://smith.langchain.com/public/17a9d26b-6f07-4771-8a67-f07c405a031f/d` 
+- **Dataset (15 exemplos):** [https://smith.langchain.com/public/17a9d26b-6f07-4771-8a67-f07c405a031f/d](https://smith.langchain.com/public/17a9d26b-6f07-4771-8a67-f07c405a031f/d)
 
 **Traces detalhados (mínimo 3):**
 
 | Exemplo | Tipo | Link do Trace |
 |---|---|---|
-| Item 1 — Botão carrinho | SIMPLES | `https://smith.langchain.com/public/414f9c2c-3626-469c-ae44-e4290cc3db70/r` |
-| Item 10 — Android ANR | MÉDIO | `https://smith.langchain.com/public/a89d85ee-969a-4138-a9de-ef35db6f06b1/r` |
-| Item 15 — Sync offline | COMPLEXO | `https://smith.langchain.com/public/c0e1b020-8181-4aaa-b400-6b937ebec389/r` |
+| Item 1 — Botão carrinho | SIMPLES | [https://smith.langchain.com/public/414f9c2c-3626-469c-ae44-e4290cc3db70/r](https://smith.langchain.com/public/414f9c2c-3626-469c-ae44-e4290cc3db70/r) |
+| Item 10 — Android ANR | MÉDIO | [https://smith.langchain.com/public/a89d85ee-969a-4138-a9de-ef35db6f06b1/r](https://smith.langchain.com/public/a89d85ee-969a-4138-a9de-ef35db6f06b1/r) |
+| Item 15 — Sync offline | COMPLEXO | [https://smith.langchain.com/public/c0e1b020-8181-4aaa-b400-6b937ebec389/r](https://smith.langchain.com/public/c0e1b020-8181-4aaa-b400-6b937ebec389/r) |
 
 
 ---
@@ -190,8 +190,8 @@ COMPLEXO → + USER STORY PRINCIPAL (Título + Descrição como user story expan
 ### 1. Clonar e instalar dependências
 
 ```bash
-git clone <url-do-repositorio>
-cd mba-ia-pull-evaluation-prompt
+git clone https://github.com/ronaldognunes/avaliacao-prompt-langchain-langsmith.git
+cd avaliacao-prompt-langchain-langsmith
 
 python -m venv venv
 # Windows
