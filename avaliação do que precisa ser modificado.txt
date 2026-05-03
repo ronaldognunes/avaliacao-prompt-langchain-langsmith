@@ -1,0 +1,153 @@
+---
+  Análise — Por que F1=0.78 e Correctness=0.86                                                                    
+   
+  1. Matemática das métricas                                                                                      
+                                                                                                                
+  Correctness  = (F1 + Precision) / 2  → fórmula em evaluate.py:237
+  0.86         = (0.78 + Precision) / 2
+  Precision    = 0.94  ✓ (acima de 0.92 — por isso foi aprovada)
+
+  F1 = 2 * (P_recall × R_recall) / (P_recall + R_recall)
+  Se P_recall ≈ 0.94:
+  0.78 = 2 * (0.94 × R) / (0.94 + R)  →  R ≈ 0.67
+
+  O problema é Recall ≈ 0.67 — o modelo captura só ~67% do conteúdo esperado. Precision está boa, Recall está
+  baixo.
+
+  ---
+  2. Causa raiz #1 — _clip_text trunca as referências complexas
+
+  Em metrics.py:100-102:
+  question  = _clip_text(question,   max_chars=1200)
+  answer    = _clip_text(answer,     max_chars=2500)
+  reference = _clip_text(reference,  max_chars=2500)
+
+  Os ground truths dos casos COMPLEXO/CRÍTICO têm:
+
+  ┌───────────────────┬────────────────────────────────┬──────────────────────┐
+  │       Caso        │ Tamanho estimado da referência │ Visível ao avaliador │
+  ├───────────────────┼────────────────────────────────┼──────────────────────┤
+  │ 13 (checkout)     │ ~3.700 chars                   │ 68%                  │
+  ├───────────────────┼────────────────────────────────┼──────────────────────┤
+  │ 14 (relatórios)   │ ~6.500 chars                   │ 38%                  │
+  ├───────────────────┼────────────────────────────────┼──────────────────────┤
+  │ 15 (sync offline) │ ~8.500 chars                   │ 29%                  │
+  └───────────────────┴────────────────────────────────┴──────────────────────┘
+
+  Para o caso 15, o avaliador só vê até o meio dos Critérios de Aceitação. Todo o restante (Critérios Técnicos com
+   3 blocos de código, 16 tasks em 4 fases, e a seção === MÉTRICAS DE SUCESSO ===) fica invisível para o judge.
+  Também os bugs dos casos 14 e 15 são truncados a 1200 chars — o avaliador não vê todos os problemas descritos.
+
+  ---
+  3. Causa raiz #2 — Ground truth contém valores NÃO presentes no bug report
+
+  Vários itens do ground truth são valores derivados/inventados pelo criador do dataset, mas o prompt instrui o
+  modelo a não inventar números. Isso cria um conflito direto:
+
+  ┌───────────────────┬─────────────────────────────────────┬──────────────────────────────┬───────────────────┐
+  │       Caso        │        Valor no ground truth        │       Presente no bug?       │   Modelo gera?    │
+  ├───────────────────┼─────────────────────────────────────┼──────────────────────────────┼───────────────────┤
+  │ 7 (relatório SQL) │ "em menos de 30 segundos"           │ ❌ Bug diz só "120s timeout" │ ❌ Regra 1 impede │
+  ├───────────────────┼─────────────────────────────────────┼──────────────────────────────┼───────────────────┤
+  │ 11 (estoque)      │ "reservar por 15 minutos"           │ ❌ Não citado no bug         │ ❌ Regra 1 impede │
+  ├───────────────────┼─────────────────────────────────────┼──────────────────────────────┼───────────────────┤
+  │ 12 (z-index)      │ "ocupar pelo menos 90% da largura"  │ ❌ Não citado                │ ❌ Regra 1 impede │
+  ├───────────────────┼─────────────────────────────────────┼──────────────────────────────┼───────────────────┤
+  │ 13 (checkout)     │ "Timeout máximo: 45s (com retries)" │ ❌ Bug diz ">30s"            │ ❌ Regra 1 impede │
+  ├───────────────────┼─────────────────────────────────────┼──────────────────────────────┼───────────────────┤
+  │ 14 (relatórios)   │ "em até 30 segundos após a mudança" │ ❌ Bug diz "24h TTL"         │ ❌ Regra 1 impede │
+  └───────────────────┴─────────────────────────────────────┴──────────────────────────────┴───────────────────┘
+
+  Esses casos penalizam o Recall mesmo o modelo estando correto ao não inventar.
+
+  ---
+  4. Causa raiz #3 — Estrutura dos Critérios Técnicos não está no template
+
+  O ground truth dos casos complexos subcategoriza os Critérios Técnicos por área de problema — padrão que não
+  existe no template do prompt:
+
+  Ground truth caso 13 (o que é esperado):
+  === CRITÉRIOS TÉCNICOS ===
+
+  Segurança:
+  - Implementar sanitização de input (DOMPurify ou similar)
+  - Adicionar Content Security Policy headers
+
+  Performance e Confiabilidade:
+  - Aumentar connection pool do Postgres
+  - Implementar retry pattern com exponential backoff
+  - Adicionar circuit breaker para gateway de pagamento
+  - Timeout máximo: 45s (com retries)
+
+  Controle de Cupons:
+  - Usar transação SQL com SELECT FOR UPDATE
+  ...
+  UX e Monitoring:
+  - Implementar polling de status...
+
+  Template do prompt (o que o modelo recebe):
+  === CRITÉRIOS TÉCNICOS ===
+  - <ações técnicas baseadas no relato>
+
+  O modelo provavelmente gera uma lista plana em vez de subcategorias → recall cai.
+
+  ---
+  5. Causa raiz #4 — Subsections do Contexto do Bug não estão no template
+
+  O ground truth do caso 13 tem duas subsections que não existem no template:
+
+  Múltiplos Componentes Afetados:
+  - Frontend: checkout page, cupom input, loading states
+  - Backend: payment API, cupom validation, database connections
+  - Integração: gateway de pagamento
+  - Infraestrutura: Postgres connection pool
+
+  O caso 14 tem:
+  SLA Atual vs Esperado:
+  - Dashboard: 45s atual → 3s esperado
+  - MRR consistency: 3 valores diferentes → 1 valor único
+  - Cache staleness: até 24h → máx 5min para dados críticos
+
+  O template do prompt só prevê: - Severidade/impacto e - Problemas identificados. Essas subsections extras não
+  são instruídas.
+
+  ---
+  6. Causa raiz #5 — Example 4 (few-shot) é muito simples para os casos reais
+
+  O Exemplo 4 adicionado mostra 2 categorias (A, B) e 6 tasks em 2 sprints. Os casos complexos reais têm:
+
+  ┌──────┬───────────────┬───────┬──────────────┐
+  │ Caso │ Categorias AC │ Tasks │    Fases     │
+  ├──────┼───────────────┼───────┼──────────────┤
+  │ 13   │ 4 (A,B,C,D)   │ 8     │ Sem fases    │
+  ├──────┼───────────────┼───────┼──────────────┤
+  │ 14   │ 4 (A,B,C,D)   │ 11    │ Sprint 1/2/3 │
+  ├──────┼───────────────┼───────┼──────────────┤
+  │ 15   │ 4 (A,B,C,D)   │ 16    │ Fase 1/2/3/4 │
+  └──────┴───────────────┴───────┴──────────────┘
+
+  O modelo tende a seguir o padrão do exemplo e gera saídas menores, com 2 categorias e ~6 tasks.
+
+  ---
+  Resumo das lacunas no prompt
+
+  ┌─────┬──────────────────────────────────────────────────────────────┬──────────────────┬──────────────────┐
+  │  #  │                            Lacuna                            │  Casos afetados  │   Impacto no     │
+  │     │                                                              │                  │      Recall      │
+  ├─────┼──────────────────────────────────────────────────────────────┼──────────────────┼──────────────────┤
+  │ 1   │ Template dos Critérios Técnicos não tem subcategorias por    │ 13, 14, 15       │ Alto             │
+  │     │ área                                                         │                  │                  │
+  ├─────┼──────────────────────────────────────────────────────────────┼──────────────────┼──────────────────┤
+  │ 2   │ Template do Contexto do Bug sem "Múltiplos Componentes       │ 13               │ Médio            │
+  │     │ Afetados"                                                    │                  │                  │
+  ├─────┼──────────────────────────────────────────────────────────────┼──────────────────┼──────────────────┤
+  │ 3   │ Template do Contexto do Bug sem "SLA Atual vs Esperado"      │ 14               │ Médio            │
+  ├─────┼──────────────────────────────────────────────────────────────┼──────────────────┼──────────────────┤
+  │ 4   │ Regra "não invente" bloqueia valores que estão no ground     │ 7, 11, 12, 13,   │ Médio            │
+  │     │ truth                                                        │ 14               │                  │
+  ├─────┼──────────────────────────────────────────────────────────────┼──────────────────┼──────────────────┤
+  │ 5   │ Exemplo 4 com escala muito menor que os casos reais          │ 13, 14, 15       │ Médio            │
+  ├─────┼──────────────────────────────────────────────────────────────┼──────────────────┼──────────────────┤
+  │ 6   │ Truncagem _clip_text(2500) esconde seções inteiras do        │ 13, 14, 15       │ Alto (avaliação) │
+  │     │ reference                                                    │                  │                  │
+  └─────┴──────────────────────────────────────────────────────────────┴──────────────────┴──────────────────┘
