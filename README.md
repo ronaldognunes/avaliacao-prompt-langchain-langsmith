@@ -6,7 +6,7 @@ Objetivo: otimizar um prompt base (v1) para converter relatos de bugs em User St
 
 ---
 
-## Técnicas Aplicadas 
+## Técnicas Aplicadas
 
 ### 1. Role Prompting
 
@@ -330,7 +330,3 @@ Analisar scores no terminal e no dashboard LangSmith
         ↓
 Se alguma métrica < 0.9 → identificar casos problemáticos → repetir
 ```
-
-
-#   a v a l i a c a o - p r o m p t - l a n g c h a i n - l a n g s m i t h  
- 
